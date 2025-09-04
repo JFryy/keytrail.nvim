@@ -2,13 +2,25 @@
 local M = {}
 
 ---@alias FileType 'yaml'|'json'
-local config = require('keytrail.config')
-local popup = require('keytrail.popup')
-local highlights = require('keytrail.highlights')
-local jump = require('keytrail.jump')
+
+-- Lazy-loaded modules
+local config, popup, highlights, jump
 
 -- Timer for hover delay
 local hover_timer = nil
+
+-- Setup state
+local _setup_complete = false
+
+-- Lazy module loader
+local function ensure_modules()
+    if not config then
+        config = require('keytrail.config')
+        popup = require('keytrail.popup')
+        highlights = require('keytrail.highlights')
+        jump = require('keytrail.jump')
+    end
+end
 
 ---@param lang string
 ---@return boolean
@@ -52,6 +64,7 @@ end
 -- Helper: quote key if it contains delimiter
 ---@param key string
 local function quote_key_if_needed(key)
+    ensure_modules()
     local delimiter = config.get().delimiter
     if key:find(delimiter, 1, true) then
         return "'" .. key .. "'"
@@ -122,12 +135,14 @@ local function get_treesitter_path(ft)
     end
 
     -- Join path segments with a beautiful delimiter
+    ensure_modules()
     return table.concat(path, config.get().delimiter)
 end
 
 -- Entry point
 ---@return string
 local function get_path()
+    ensure_modules()
     local ft = vim.bo.filetype
     if not config.get().filetypes[ft] then
         return ""
@@ -150,6 +165,7 @@ local function handle_cursor_move()
     end
 
     -- Start new timer
+    ensure_modules()
     hover_timer = vim.defer_fn(function()
         popup.show(get_path())
     end, config.get().hover_delay)
@@ -179,6 +195,7 @@ local function setup()
         group = group,
         callback = function()
             clear_hover_timer()
+            ensure_modules()
             popup.close()
         end,
         pattern = { "*.yaml", "*.yml", "*.json" }
@@ -189,6 +206,7 @@ local function setup()
         group = group,
         callback = function()
             clear_hover_timer()
+            ensure_modules()
             popup.close()
         end,
         pattern = { "*.yaml", "*.yml", "*.json" }
@@ -197,6 +215,7 @@ end
 
 -- Generic handler function for all events
 local function handle_event()
+    ensure_modules()
     popup.show(get_path())
 end
 
@@ -205,13 +224,14 @@ M.handle_cursor_move = handle_event
 M.handle_window_change = handle_event
 M.handle_buffer_change = handle_event
 
--- Setup function
-function M.setup(opts)
-    -- Prevent double setup
-    if M._setup then
+-- Lazy setup function - only called when needed
+function M.ensure_setup(opts)
+    if _setup_complete then
         return
     end
-    M._setup = true
+    _setup_complete = true
+
+    ensure_modules()
 
     -- Ensure leader key is set
     if vim.g.mapleader == nil then
@@ -224,43 +244,6 @@ function M.setup(opts)
     highlights.setup()
     setup()
 
-    -- Create the KeyTrail command
-    vim.api.nvim_create_user_command('KeyTrail', function(opts)
-        local ft = vim.bo.filetype
-        if not config.get().filetypes[ft] then
-            vim.notify("KeyTrail: Current filetype not supported", vim.log.levels.ERROR)
-            return
-        end
-
-        if not opts.args or opts.args == "" then
-            vim.notify("KeyTrail: Please provide a path to jump to", vim.log.levels.ERROR)
-            return
-        end
-
-        if not jump.jump_to_path(ft, opts.args) then
-            vim.notify("KeyTrail: Could not find path: " .. opts.args, vim.log.levels.ERROR)
-        end
-    end, {
-        nargs = 1,
-        complete = function()
-            -- TODO: Add completion for valid paths
-            return {}
-        end
-    })
-
-    -- Create the KeyTrailJump command
-    vim.api.nvim_create_user_command('KeyTrailJump', function()
-        local ft = vim.bo.filetype
-        if not config.get().filetypes[ft] then
-            vim.notify("KeyTrail: Current filetype not supported", vim.log.levels.ERROR)
-            return
-        end
-
-        if not jump.jumpwindow() then
-            vim.notify("KeyTrail: Could not jump to specified path", vim.log.levels.ERROR)
-        end
-    end, {})
-
     -- Set up default key mapping
     vim.keymap.set('n', '<leader>' .. config.get().key_mapping, function()
         local ft = vim.bo.filetype
@@ -270,6 +253,43 @@ function M.setup(opts)
         end
         jump.jumpwindow()
     end, { desc = 'KeyTrail: Jump to path', silent = true })
+end
+
+-- Command handlers
+function M.handle_command(opts)
+    ensure_modules()
+    local ft = vim.bo.filetype
+    if not config.get().filetypes[ft] then
+        vim.notify("KeyTrail: Current filetype not supported", vim.log.levels.ERROR)
+        return
+    end
+
+    if not opts.args or opts.args == "" then
+        vim.notify("KeyTrail: Please provide a path to jump to", vim.log.levels.ERROR)
+        return
+    end
+
+    if not jump.jump_to_path(ft, opts.args) then
+        vim.notify("KeyTrail: Could not find path: " .. opts.args, vim.log.levels.ERROR)
+    end
+end
+
+function M.handle_jump_command()
+    ensure_modules()
+    local ft = vim.bo.filetype
+    if not config.get().filetypes[ft] then
+        vim.notify("KeyTrail: Current filetype not supported", vim.log.levels.ERROR)
+        return
+    end
+
+    if not jump.jumpwindow() then
+        vim.notify("KeyTrail: Could not jump to specified path", vim.log.levels.ERROR)
+    end
+end
+
+-- Legacy setup function for manual configuration
+function M.setup(opts)
+    M.ensure_setup(opts)
 end
 
 return M
