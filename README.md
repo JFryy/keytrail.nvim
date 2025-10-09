@@ -8,6 +8,7 @@ A Neovim plugin in pure lua that shows the current path in YAML and JSON files, 
 - Shows the current path in YAML and JSON files
 - Hover popup with the current path
 - Jump to any path in the document using Telescope
+- Yank (copy) the current path to clipboard
 - Support for both YAML and JSON file types
 - Configurable delimiter and hover delay
 - Customizable key mapping
@@ -85,6 +86,8 @@ require("keytrail").setup({
     hover_delay = 100,
     -- The key mapping to use for jumping to a path
     key_mapping = "jq",
+    -- The key mapping to use for yanking the current path
+    yank_key_mapping = "jy",
     -- The file types to enable KeyTrail for
     filetypes = {
         yaml = true,
@@ -98,6 +101,7 @@ KeyTrail provides the following commands:
 
 - `:KeyTrail <path>` - Jump to the specified path
 - `:KeyTrailJump` - Open Telescope to select and jump to a path
+- `:KeyTrailYank` - Yank (copy) the current path to the clipboard
 
-By default, KeyTrail maps `<leader>jq` to `:KeyTrailJump` in normal mode.
+By default, KeyTrail maps `<leader>jq` to `:KeyTrailJump` and `<leader>jy` to `:KeyTrailYank` in normal mode.
 
