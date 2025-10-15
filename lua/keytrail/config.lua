@@ -15,6 +15,18 @@ local default_config = {
     },
     -- UI settings
     hover_delay = 20,            -- Delay in milliseconds before showing popup
+    popup_highlight = nil,       -- Highlight or highlight table to use for the popup background (auto-detect when nil)
+    winblend = 10,               -- Transparency for the popup window (0-100) (kept for backward compatibility)
+    popup = {
+        enabled = true,          -- Control whether the floating popup is shown
+        winblend = nil,          -- Override transparency for the popup window (0-100)
+    },
+    statusline = {
+        enabled = false,         -- Keep an up-to-date cache for statusline integrations
+        prefix = "",             -- Text added before the rendered path
+        suffix = "",             -- Text added after the rendered path
+        empty = "",              -- Text to show when no path is available
+    },
     colors = {
         "#d4c4a8",               -- Soft yellow
         "#c4d4a8",               -- Soft green

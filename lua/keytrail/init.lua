@@ -4,13 +4,16 @@ local M = {}
 ---@alias FileType 'yaml'|'json'
 
 -- Lazy-loaded modules
-local config, popup, highlights, jump
+local config, popup, highlights, jump, render
 
 -- Timer for hover delay
 local hover_timer = nil
 
 -- Setup state
 local _setup_complete = false
+
+-- Cached segments for statusline integration
+local statusline_segments = {}
 
 -- Lazy module loader
 local function ensure_modules()
@@ -19,7 +22,20 @@ local function ensure_modules()
         popup = require('keytrail.popup')
         highlights = require('keytrail.highlights')
         jump = require('keytrail.jump')
+        render = require('keytrail.render')
     end
+end
+
+local function popup_is_enabled()
+    ensure_modules()
+    local popup_cfg = config.get().popup
+    return not popup_cfg or popup_cfg.enabled ~= false
+end
+
+local function statusline_is_enabled()
+    ensure_modules()
+    local statusline_cfg = config.get().statusline
+    return statusline_cfg and statusline_cfg.enabled
 end
 
 ---@param lang string
@@ -156,6 +172,45 @@ local function get_path()
     return path
 end
 
+local function set_statusline_segments(segments)
+    if not statusline_is_enabled() then
+        statusline_segments = {}
+        return
+    end
+
+    if segments and not vim.tbl_isempty(segments) then
+        statusline_segments = segments
+    else
+        statusline_segments = {}
+    end
+end
+
+local function update_display()
+    ensure_modules()
+
+    local path = get_path()
+    if path == "" then
+        set_statusline_segments({})
+        popup.close()
+        return
+    end
+
+    local colored_text, total_width = render.from_path(path)
+    set_statusline_segments(colored_text)
+
+    if popup_is_enabled() then
+        popup.show(colored_text, total_width)
+    else
+        popup.close()
+    end
+end
+
+local function clear_display()
+    ensure_modules()
+    set_statusline_segments({})
+    popup.close()
+end
+
 -- Handle cursor movement
 local function handle_cursor_move()
     -- Clear existing timer
@@ -166,9 +221,15 @@ local function handle_cursor_move()
 
     -- Start new timer
     ensure_modules()
+    local delay = config.get().hover_delay or 0
+    if not popup_is_enabled() or delay <= 0 then
+        update_display()
+        return
+    end
+
     hover_timer = vim.defer_fn(function()
-        popup.show(get_path())
-    end, config.get().hover_delay)
+        update_display()
+    end, delay)
 end
 
 -- Helper function to clear hover timer
@@ -195,8 +256,7 @@ local function setup()
         group = group,
         callback = function()
             clear_hover_timer()
-            ensure_modules()
-            popup.close()
+            clear_display()
         end,
         pattern = { "*.yaml", "*.yml", "*.json" }
     })
@@ -206,8 +266,7 @@ local function setup()
         group = group,
         callback = function()
             clear_hover_timer()
-            ensure_modules()
-            popup.close()
+            clear_display()
         end,
         pattern = { "*.yaml", "*.yml", "*.json" }
     })
@@ -215,8 +274,7 @@ end
 
 -- Generic handler function for all events
 local function handle_event()
-    ensure_modules()
-    popup.show(get_path())
+    update_display()
 end
 
 -- Handler functions
@@ -313,6 +371,41 @@ end
 -- Legacy setup function for manual configuration
 function M.setup(opts)
     M.ensure_setup(opts)
+end
+
+---Return a statusline-safe string for the current path.
+---Intended to be used inside statusline expressions.
+function M.statusline()
+    ensure_modules()
+    local cfg = config.get().statusline or {}
+    if not cfg.enabled then
+        return cfg.empty or ""
+    end
+
+    if vim.tbl_isempty(statusline_segments) then
+        return cfg.empty or ""
+    end
+
+    local parts = {}
+    if cfg.prefix and cfg.prefix ~= "" then
+        table.insert(parts, cfg.prefix)
+    end
+
+    for _, chunk in ipairs(statusline_segments) do
+        local text, hl = chunk[1], chunk[2]
+        if hl and hl ~= "" then
+            table.insert(parts, "%#" .. hl .. "#" .. text)
+        else
+            table.insert(parts, text)
+        end
+    end
+
+    if cfg.suffix and cfg.suffix ~= "" then
+        table.insert(parts, cfg.suffix)
+    end
+
+    table.insert(parts, "%#StatusLine#")
+    return table.concat(parts)
 end
 
 return M

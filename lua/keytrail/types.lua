@@ -1,5 +1,9 @@
 ---@class KeyTrailConfig
 ---@field hover_delay? number The delay in milliseconds before showing the popup
+---@field popup_highlight? string|table Highlight configuration for the popup background
+---@field winblend? number Window transparency for the popup (0-100) (deprecated in favour of popup.winblend)
+---@field popup? { enabled?: boolean, winblend?: number } Popup rendering options
+---@field statusline? { enabled?: boolean, prefix?: string, suffix?: string, empty?: string } Statusline rendering options
 ---@field colors? string[] Array of colors to use for path segments
 ---@field delimiter? string The delimiter to use between path segments
 ---@field position? 'top'|'bottom' The position of the popup

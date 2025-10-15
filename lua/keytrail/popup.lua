@@ -57,7 +57,14 @@ function M.create(path_width)
     })
 
     -- Set popup window options
-    vim.api.nvim_win_set_option(popup, 'winblend', 0)
+    local cfg = config.get()
+    local popup_cfg = cfg.popup or {}
+    local winblend = popup_cfg.winblend
+    if winblend == nil then
+        winblend = cfg.winblend or 0
+    end
+    winblend = math.max(0, math.min(100, winblend))
+    vim.api.nvim_win_set_option(popup, 'winblend', winblend)
     vim.api.nvim_win_set_option(popup, 'cursorline', false)
     vim.api.nvim_win_set_option(popup, 'cursorcolumn', false)
     vim.api.nvim_win_set_option(popup, 'number', false)
@@ -77,43 +84,24 @@ function M.create(path_width)
     return buf, popup
 end
 
----Show the popup with the given path
----@param path string The path to display
-function M.show(path)
+---Show the popup with prepared colored text
+---@param colored_text table The segments to display (array of {text, highlight})
+---@param total_width number The width needed for the popup (optional)
+function M.show(colored_text, total_width)
     -- Always close existing popup first
     M.close()
 
-    if path == "" then
+    if not colored_text or vim.tbl_isempty(colored_text) then
         return
     end
 
-    -- Split path into segments and create colored text
-    local segments = vim.split(path, config.get().delimiter, { plain = true })
-    local colored_text = {}
-    local total_width = 0
-
-    for i, segment in ipairs(segments) do
-        local color_idx = ((i - 1) % #config.get().colors) + 1
-        -- Handle array indices with blue brackets
-        if segment:match("^%[.*%]$") then
-            local index = segment:match("%[(%d+)%]")
-            table.insert(colored_text, { "[", "KeyTrailBracket" })
-            table.insert(colored_text, { index, "YAMLPathline" .. color_idx })
-            table.insert(colored_text, { "]", "KeyTrailBracket" })
-            total_width = total_width + #segment
-        else
-            table.insert(colored_text, { segment, "YAMLPathline" .. color_idx })
-            total_width = total_width + #segment
+    if not total_width then
+        total_width = 0
+        for _, chunk in ipairs(colored_text) do
+            total_width = total_width + #chunk[1]
         end
-        -- Add delimiter if not the last segment and next segment is not an array index
-        if i < #segments and not segments[i + 1]:match("^%[.*%]$") then
-            table.insert(colored_text, { config.get().delimiter, "KeyTrailDelimiter" })
-            total_width = total_width + #config.get().delimiter
-        end
+        total_width = total_width + 2
     end
-
-    -- Add some padding
-    total_width = total_width + 2
 
     -- Create new popup with calculated width
     current_buf, current_popup = M.create(total_width)
