@@ -17,6 +17,12 @@ local function setup_lazy()
         require('keytrail').handle_jump_command()
     end, {})
 
+    -- Create the KeyTrailYank command
+    vim.api.nvim_create_user_command('KeyTrailYank', function()
+        require('keytrail').ensure_setup()
+        require('keytrail').handle_yank_command()
+    end, {})
+
     -- Set up filetype autocommand for lazy initialization
     vim.api.nvim_create_autocmd("FileType", {
         pattern = { "yaml", "json" },

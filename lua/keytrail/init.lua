@@ -244,7 +244,7 @@ function M.ensure_setup(opts)
     highlights.setup()
     setup()
 
-    -- Set up default key mapping
+    -- Set up default key mapping for jump
     vim.keymap.set('n', '<leader>' .. config.get().key_mapping, function()
         local ft = vim.bo.filetype
         if not config.get().filetypes[ft] then
@@ -253,6 +253,11 @@ function M.ensure_setup(opts)
         end
         jump.jumpwindow()
     end, { desc = 'KeyTrail: Jump to path', silent = true })
+
+    -- Set up default key mapping for yank
+    vim.keymap.set('n', '<leader>' .. config.get().yank_key_mapping, function()
+        M.handle_yank_command()
+    end, { desc = 'KeyTrail: Yank current path', silent = true })
 end
 
 -- Command handlers
@@ -285,6 +290,24 @@ function M.handle_jump_command()
     if not jump.jumpwindow() then
         vim.notify("KeyTrail: Could not jump to specified path", vim.log.levels.ERROR)
     end
+end
+
+function M.handle_yank_command()
+    ensure_modules()
+    local ft = vim.bo.filetype
+    if not config.get().filetypes[ft] then
+        vim.notify("KeyTrail: Current filetype not supported", vim.log.levels.ERROR)
+        return
+    end
+
+    local path = get_path()
+    if path == "" then
+        vim.notify("KeyTrail: No path found at cursor position", vim.log.levels.WARN)
+        return
+    end
+
+    vim.fn.setreg('+', path)
+    vim.notify("KeyTrail: Yanked path: " .. path, vim.log.levels.INFO)
 end
 
 -- Legacy setup function for manual configuration
