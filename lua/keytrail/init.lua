@@ -1,162 +1,28 @@
 ---@class KeyTrail
 local M = {}
 
----@alias FileType 'yaml'|'json'
+---@alias FileType 'yaml'|'json'|'jsonc'
 
 -- Lazy-loaded modules
-local config, popup, highlights, jump, render
-
--- Timer for hover delay
-local hover_timer = nil
+local config, highlights, treesitter, display, autocmds, commands
 
 -- Setup state
 local _setup_complete = false
 
--- Cached segments for statusline integration
-local statusline_segments = {}
-
--- Lazy module loader
+---Lazy module loader
 local function ensure_modules()
     if not config then
         config = require('keytrail.config')
-        popup = require('keytrail.popup')
         highlights = require('keytrail.highlights')
-        jump = require('keytrail.jump')
-        render = require('keytrail.render')
+        treesitter = require('keytrail.treesitter')
+        display = require('keytrail.display')
+        autocmds = require('keytrail.autocmds')
+        commands = require('keytrail.commands')
     end
 end
 
-local function popup_is_enabled()
-    ensure_modules()
-    local popup_cfg = config.get().popup
-    return not popup_cfg or popup_cfg.enabled ~= false
-end
-
-local function statusline_is_enabled()
-    ensure_modules()
-    local statusline_cfg = config.get().statusline
-    return statusline_cfg and statusline_cfg.enabled
-end
-
----@param lang string
----@return boolean
-local function ensure_parser_ready(lang)
-    local ok, parsers = pcall(require, 'nvim-treesitter.parsers')
-    if not ok then
-        vim.notify("yaml_pathline: nvim-treesitter not available", vim.log.levels.WARN)
-        return false
-    end
-
-    -- Check if using new treesitter (get_parser_configs returns nil)
-    if not parsers or not parsers.get_parser_configs then
-        return true
-    end
-
-    local parser_configs = parsers.get_parser_configs()
-    local parser_config = parser_configs[lang]
-    if not parser_config then
-        vim.notify("yaml_pathline: No parser config for " .. lang, vim.log.levels.WARN)
-        return false
-    end
-
-    -- Check if the parser is installed
-    if not parsers.has_parser(lang) then
-        vim.schedule(function()
-            vim.cmd('TSInstall ' .. lang)
-        end)
-        vim.notify("yaml_pathline: Installing " .. lang .. " parser...", vim.log.levels.INFO)
-        return false
-    end
-
-    return true
-end
-
--- Helper: extract key from node text
----@param key string
-local function clean_key(key)
-    return key:gsub('^["\']', ''):gsub('["\']$', '')
-end
-
--- Helper: quote key if it contains delimiter
----@param key string
-local function quote_key_if_needed(key)
-    ensure_modules()
-    local delimiter = config.get().delimiter
-    if key:find(delimiter, 1, true) then
-        return "'" .. key .. "'"
-    end
-    return key
-end
-
----@param ft FileType
----@return string|nil
-local function get_treesitter_path(ft)
-    if not ensure_parser_ready(ft) then
-        return nil
-    end
-
-    local ok_parser, parser = pcall(vim.treesitter.get_parser, 0, ft)
-    if not ok_parser or not parser then
-        return nil
-    end
-
-    local trees = parser:parse()
-    if not trees or not trees[1] then
-        return nil
-    end
-
-    local tree = trees[1]
-    local root = tree:root()
-    if not root then
-        return nil
-    end
-
-    local cursor = vim.api.nvim_win_get_cursor(0)
-    local row, col = cursor[1] - 1, cursor[2]
-    local node = root:named_descendant_for_range(row, col, row, col)
-    if not node then
-        return nil
-    end
-
-    ---@type string[]
-    local path = {}
-    while node do
-        local type = node:type()
-
-        -- Handle both YAML and JSON object properties
-        if type == "block_mapping_pair" or type == "flow_mapping_pair" or type == "pair" then
-            local key_node = node:field("key")[1]
-            if key_node then
-                local key = clean_key(vim.treesitter.get_node_text(key_node, 0))
-                table.insert(path, 1, quote_key_if_needed(key))
-            end
-            -- Handle both YAML and JSON array items
-        elseif type == "block_sequence_item" or type == "flow_sequence_item" or type == "array" then
-            local parent = node:parent()
-            if parent then
-                local index = 0
-                for child in parent:iter_children() do
-                    if child == node then break end
-                    if child:type() == type then index = index + 1 end
-                end
-                table.insert(path, 1, "[" .. index .. "]") -- Format array index with brackets
-            end
-        end
-
-        node = node:parent()
-    end
-
-    if #path == 0 then
-        return nil
-    end
-
-    -- Join path segments with a beautiful delimiter
-    ensure_modules()
-    return table.concat(path, config.get().delimiter)
-end
-
--- Entry point
----@return string
+---Get the path at the current cursor position
+---@return string path The current path or empty string
 local function get_path()
     ensure_modules()
     local ft = vim.bo.filetype
@@ -164,7 +30,7 @@ local function get_path()
         return ""
     end
 
-    local path = get_treesitter_path(ft)
+    local path = treesitter.get_path_at_cursor(ft)
     if not path then
         return ""
     end
@@ -172,117 +38,7 @@ local function get_path()
     return path
 end
 
-local function set_statusline_segments(segments)
-    if not statusline_is_enabled() then
-        statusline_segments = {}
-        return
-    end
-
-    if segments and not vim.tbl_isempty(segments) then
-        statusline_segments = segments
-    else
-        statusline_segments = {}
-    end
-end
-
-local function update_display()
-    ensure_modules()
-
-    local path = get_path()
-    if path == "" then
-        set_statusline_segments({})
-        popup.close()
-        return
-    end
-
-    local colored_text, total_width = render.from_path(path)
-    set_statusline_segments(colored_text)
-
-    if popup_is_enabled() then
-        popup.show(colored_text, total_width)
-    else
-        popup.close()
-    end
-end
-
-local function clear_display()
-    ensure_modules()
-    set_statusline_segments({})
-    popup.close()
-end
-
--- Handle cursor movement
-local function handle_cursor_move()
-    -- Clear existing timer
-    if hover_timer then
-        hover_timer:stop()
-        hover_timer = nil
-    end
-
-    -- Start new timer
-    ensure_modules()
-    local delay = config.get().hover_delay or 0
-    if not popup_is_enabled() or delay <= 0 then
-        update_display()
-        return
-    end
-
-    hover_timer = vim.defer_fn(function()
-        update_display()
-    end, delay)
-end
-
--- Helper function to clear hover timer
-local function clear_hover_timer()
-    if hover_timer then
-        hover_timer:stop()
-        hover_timer = nil
-    end
-end
-
--- Set up autocommands
-local function setup()
-    local group = vim.api.nvim_create_augroup("KeyTrail", { clear = true })
-
-    -- Show popup on cursor move
-    vim.api.nvim_create_autocmd({ "CursorMoved", "CursorMovedI" }, {
-        group = group,
-        callback = handle_cursor_move,
-        pattern = { "*.yaml", "*.yml", "*.json" }
-    })
-
-    -- Clear popup when leaving buffer or window
-    vim.api.nvim_create_autocmd({ "BufLeave", "WinLeave", "WinScrolled", "ModeChanged" }, {
-        group = group,
-        callback = function()
-            clear_hover_timer()
-            clear_display()
-        end,
-        pattern = { "*.yaml", "*.yml", "*.json" }
-    })
-
-    -- Clear popup when entering insert mode
-    vim.api.nvim_create_autocmd({ "InsertEnter" }, {
-        group = group,
-        callback = function()
-            clear_hover_timer()
-            clear_display()
-        end,
-        pattern = { "*.yaml", "*.yml", "*.json" }
-    })
-end
-
--- Generic handler function for all events
-local function handle_event()
-    update_display()
-end
-
--- Handler functions
-M.handle_cursor_move = handle_event
-M.handle_window_change = handle_event
-M.handle_buffer_change = handle_event
-
--- Lazy setup function - only called when needed
+---Lazy setup function - only called when needed
 function M.ensure_setup(opts)
     if _setup_complete then
         return
@@ -299,8 +55,15 @@ function M.ensure_setup(opts)
     if opts ~= nil then
         config.set(opts)
     end
+
     highlights.setup()
-    setup()
+
+    -- Setup autocommands with display handlers
+    autocmds.setup(
+        function() display.handle_cursor_move(get_path) end,
+        function() display.clear_hover_timer() end,
+        function() display.clear() end
+    )
 
     -- Set up default key mapping for jump
     vim.keymap.set('n', '<leader>' .. config.get().key_mapping, function()
@@ -309,6 +72,7 @@ function M.ensure_setup(opts)
             vim.notify("KeyTrail: Current filetype not supported", vim.log.levels.ERROR)
             return
         end
+        local jump = require('keytrail.jump')
         jump.jumpwindow()
     end, { desc = 'KeyTrail: Jump to path', silent = true })
 
@@ -318,57 +82,23 @@ function M.ensure_setup(opts)
     end, { desc = 'KeyTrail: Yank current path', silent = true })
 end
 
--- Command handlers
+---Command handlers (exposed for use in plugin/keytrail.lua)
 function M.handle_command(opts)
     ensure_modules()
-    local ft = vim.bo.filetype
-    if not config.get().filetypes[ft] then
-        vim.notify("KeyTrail: Current filetype not supported", vim.log.levels.ERROR)
-        return
-    end
-
-    if not opts.args or opts.args == "" then
-        vim.notify("KeyTrail: Please provide a path to jump to", vim.log.levels.ERROR)
-        return
-    end
-
-    if not jump.jump_to_path(ft, opts.args) then
-        vim.notify("KeyTrail: Could not find path: " .. opts.args, vim.log.levels.ERROR)
-    end
+    commands.handle_command(opts)
 end
 
 function M.handle_jump_command()
     ensure_modules()
-    local ft = vim.bo.filetype
-    if not config.get().filetypes[ft] then
-        vim.notify("KeyTrail: Current filetype not supported", vim.log.levels.ERROR)
-        return
-    end
-
-    if not jump.jumpwindow() then
-        vim.notify("KeyTrail: Could not jump to specified path", vim.log.levels.ERROR)
-    end
+    commands.handle_jump_command()
 end
 
 function M.handle_yank_command()
     ensure_modules()
-    local ft = vim.bo.filetype
-    if not config.get().filetypes[ft] then
-        vim.notify("KeyTrail: Current filetype not supported", vim.log.levels.ERROR)
-        return
-    end
-
-    local path = get_path()
-    if path == "" then
-        vim.notify("KeyTrail: No path found at cursor position", vim.log.levels.WARN)
-        return
-    end
-
-    vim.fn.setreg('+', path)
-    vim.notify("KeyTrail: Yanked path: " .. path, vim.log.levels.INFO)
+    commands.handle_yank_command(get_path)
 end
 
--- Legacy setup function for manual configuration
+---Legacy setup function for manual configuration
 function M.setup(opts)
     M.ensure_setup(opts)
 end
@@ -377,35 +107,7 @@ end
 ---Intended to be used inside statusline expressions.
 function M.statusline()
     ensure_modules()
-    local cfg = config.get().statusline or {}
-    if not cfg.enabled then
-        return cfg.empty or ""
-    end
-
-    if vim.tbl_isempty(statusline_segments) then
-        return cfg.empty or ""
-    end
-
-    local parts = {}
-    if cfg.prefix and cfg.prefix ~= "" then
-        table.insert(parts, cfg.prefix)
-    end
-
-    for _, chunk in ipairs(statusline_segments) do
-        local text, hl = chunk[1], chunk[2]
-        if hl and hl ~= "" then
-            table.insert(parts, "%#" .. hl .. "#" .. text)
-        else
-            table.insert(parts, text)
-        end
-    end
-
-    if cfg.suffix and cfg.suffix ~= "" then
-        table.insert(parts, cfg.suffix)
-    end
-
-    table.insert(parts, "%#StatusLine#")
-    return table.concat(parts)
+    return display.generate_statusline()
 end
 
 return M

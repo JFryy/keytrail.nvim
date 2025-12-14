@@ -1,11 +1,6 @@
 local M = {}
 local config = require('keytrail.config')
-
--- Helper: extract key from node text
----@param key string
-local function clean_key(key)
-    return key:gsub('^["\']', ''):gsub('["\']$', '')
-end
+local treesitter = require('keytrail.treesitter')
 
 -- Helper: smart path splitting that handles quoted segments
 ---@param path string
@@ -53,21 +48,14 @@ local function split_path_segments(path, delimiter)
     return segments
 end
 
--- Helper: quote key if it contains delimiter
----@param key string
-local function quote_key_if_needed(key)
-    local delimiter = config.get().delimiter
-    if key:find(delimiter, 1, true) then
-        return "'" .. key .. "'"
-    end
-    return key
-end
-
 ---@param ft string The file type
 ---@param path string The path to find (e.g. "data[0].key1")
 ---@return boolean success Whether the jump was successful
 function M.jump_to_path(ft, path)
-    local ok_parser, parser = pcall(vim.treesitter.get_parser, 0, ft)
+    -- Map jsonc to json parser since they share the same syntax
+    local parser_lang = ft == "jsonc" and "json" or ft
+
+    local ok_parser, parser = pcall(vim.treesitter.get_parser, 0, parser_lang)
     if not ok_parser or not parser then
         vim.notify("Failed to get parser for " .. ft, vim.log.levels.ERROR)
         return false
@@ -91,7 +79,7 @@ function M.jump_to_path(ft, path)
     local current_node = root
 
     -- Handle root node based on file type
-    if ft == "json" then
+    if parser_lang == "json" then
         -- For JSON, get the actual object from the program node
         for child in current_node:iter_children() do
             if child:type() == "object" then
@@ -149,9 +137,9 @@ function M.jump_to_path(ft, path)
                     if type == "block_mapping_pair" or type == "flow_mapping_pair" or type == "pair" then
                         local key_node = child:field("key")[1]
                         if key_node then
-                            local found_key = clean_key(vim.treesitter.get_node_text(key_node, 0))
+                            local found_key = treesitter.clean_key(vim.treesitter.get_node_text(key_node, 0))
 
-                            if found_key == clean_key(key) then
+                            if found_key == treesitter.clean_key(key) then
                                 -- Get the value node which should contain the array
                                 local value_node = child:field("value")[1]
                                 if value_node then
@@ -261,9 +249,9 @@ function M.jump_to_path(ft, path)
                 if type == "block_mapping_pair" or type == "flow_mapping_pair" or type == "pair" then
                     local key_node = child:field("key")[1]
                     if key_node then
-                        local key = clean_key(vim.treesitter.get_node_text(key_node, 0))
+                        local key = treesitter.clean_key(vim.treesitter.get_node_text(key_node, 0))
 
-                        if key == clean_key(segment) then
+                        if key == treesitter.clean_key(segment) then
                             -- Get the value node
                             local value_node = child:field("value")[1]
                             if value_node then
@@ -352,7 +340,10 @@ end
 ---@return table paths Array of paths
 local function get_all_paths()
     local ft = vim.bo.filetype
-    local ok_parser, parser = pcall(vim.treesitter.get_parser, 0, ft)
+    -- Map jsonc to json parser since they share the same syntax
+    local parser_lang = ft == "jsonc" and "json" or ft
+
+    local ok_parser, parser = pcall(vim.treesitter.get_parser, 0, parser_lang)
     if not ok_parser or not parser then
         return {}
     end
@@ -373,7 +364,7 @@ local function get_all_paths()
         local type = node:type()
 
         -- Handle YAML document structure
-        if ft == "yaml" then
+        if parser_lang == "yaml" then
             if type == "stream" or type == "document" or type == "block_node" then
                 for child in node:iter_children() do
                     traverse_node(child, current_path)
@@ -383,7 +374,7 @@ local function get_all_paths()
         end
 
         -- Handle JSON structure
-        if ft == "json" then
+        if parser_lang == "json" then
             if type == "program" or type == "document" or type == "object" then
                 for child in node:iter_children() do
                     traverse_node(child, current_path)
@@ -409,9 +400,9 @@ local function get_all_paths()
         if type == "pair" or type == "block_mapping_pair" or type == "flow_mapping_pair" then
             local key_node = node:field("key")[1]
             if key_node then
-                local key = clean_key(vim.treesitter.get_node_text(key_node, 0))
+                local key = treesitter.clean_key(vim.treesitter.get_node_text(key_node, 0))
                 local new_path = current_path ..
-                (current_path ~= "" and config.get().delimiter or "") .. quote_key_if_needed(key)
+                (current_path ~= "" and config.get().delimiter or "") .. treesitter.quote_key_if_needed(key)
                 table.insert(paths, new_path)
 
                 -- Traverse value node

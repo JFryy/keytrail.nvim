@@ -4,9 +4,9 @@ local M = {}
 local default_config = {
     -- Performance optimizations
     lazy = {
-        enabled = true,          -- Enable lazy loading
-        ft = { "yaml", "json" }, -- Only load for YAML and JSON files
-        event = "UIEnter",       -- Defer loading until after UI is ready
+        enabled = true,                 -- Enable lazy loading
+        ft = { "yaml", "json", "jsonc" }, -- Only load for YAML, JSON, and JSONC files
+        event = "UIEnter",              -- Defer loading until after UI is ready
     },
     -- TreeSitter optimizations
     treesitter = {
@@ -14,18 +14,18 @@ local default_config = {
         load_parsers_on_demand = true, -- Only load parsers when needed
     },
     -- UI settings
-    hover_delay = 20,            -- Delay in milliseconds before showing popup
-    popup_highlight = nil,       -- Highlight or highlight table to use for the popup background (auto-detect when nil)
-    winblend = 10,               -- Transparency for the popup window (0-100) (kept for backward compatibility)
+    hover_delay = 20,      -- Delay in milliseconds before showing popup
+    popup_highlight = nil, -- Highlight or highlight table to use for the popup background (auto-detect when nil)
+    winblend = 10,         -- Transparency for the popup window (0-100) (kept for backward compatibility)
     popup = {
-        enabled = true,          -- Control whether the floating popup is shown
-        winblend = nil,          -- Override transparency for the popup window (0-100)
+        enabled = true,    -- Control whether the floating popup is shown
+        winblend = nil,    -- Override transparency for the popup window (0-100)
     },
     statusline = {
-        enabled = false,         -- Keep an up-to-date cache for statusline integrations
-        prefix = "",             -- Text added before the rendered path
-        suffix = "",             -- Text added after the rendered path
-        empty = "",              -- Text to show when no path is available
+        enabled = false, -- Keep an up-to-date cache for statusline integrations
+        prefix = "",     -- Text added before the rendered path
+        suffix = "",     -- Text added after the rendered path
+        empty = "",      -- Text to show when no path is available
     },
     colors = {
         "#d4c4a8",               -- Soft yellow
@@ -41,10 +41,11 @@ local default_config = {
     delimiter_color = "#ff0000", -- Red color for delimiter
     filetypes = {                -- Supported file types
         yaml = true,
-        json = true
+        json = true,
+        jsonc = true
     },
-    key_mapping = "jq",       -- Key mapping for jump window (will be prefixed with <leader>)
-    yank_key_mapping = "jy"   -- Key mapping for yank command (will be prefixed with <leader>)
+    key_mapping = "jq",     -- Key mapping for jump window (will be prefixed with <leader>)
+    yank_key_mapping = "jy" -- Key mapping for yank command (will be prefixed with <leader>)
 }
 
 ---@type KeyTrailConfig
