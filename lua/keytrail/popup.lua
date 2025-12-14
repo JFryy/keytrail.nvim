@@ -27,11 +27,11 @@ end
 function M.create(path_width)
     -- Create a new buffer
     local buf = vim.api.nvim_create_buf(false, true)
-    vim.api.nvim_buf_set_option(buf, 'modifiable', false)
-    vim.api.nvim_buf_set_option(buf, 'modified', false)
-    vim.api.nvim_buf_set_option(buf, 'buftype', 'nofile')
-    vim.api.nvim_buf_set_option(buf, 'bufhidden', 'wipe')
-    vim.api.nvim_buf_set_option(buf, 'swapfile', false)
+    vim.bo[buf].modifiable = false
+    vim.bo[buf].modified = false
+    vim.bo[buf].buftype = 'nofile'
+    vim.bo[buf].bufhidden = 'wipe'
+    vim.bo[buf].swapfile = false
 
     -- Get window dimensions
     local win_width = vim.api.nvim_win_get_width(0)
@@ -64,22 +64,22 @@ function M.create(path_width)
         winblend = cfg.winblend or 0
     end
     winblend = math.max(0, math.min(100, winblend))
-    vim.api.nvim_win_set_option(popup, 'winblend', winblend)
-    vim.api.nvim_win_set_option(popup, 'cursorline', false)
-    vim.api.nvim_win_set_option(popup, 'cursorcolumn', false)
-    vim.api.nvim_win_set_option(popup, 'number', false)
-    vim.api.nvim_win_set_option(popup, 'relativenumber', false)
-    vim.api.nvim_win_set_option(popup, 'signcolumn', 'no')
-    vim.api.nvim_win_set_option(popup, 'foldcolumn', '0')
-    vim.api.nvim_win_set_option(popup, 'list', false)
-    vim.api.nvim_win_set_option(popup, 'wrap', false)
-    vim.api.nvim_win_set_option(popup, 'linebreak', false)
-    vim.api.nvim_win_set_option(popup, 'scrolloff', 0)
-    vim.api.nvim_win_set_option(popup, 'sidescrolloff', 0)
+    vim.wo[popup].winblend = winblend
+    vim.wo[popup].cursorline = false
+    vim.wo[popup].cursorcolumn = false
+    vim.wo[popup].number = false
+    vim.wo[popup].relativenumber = false
+    vim.wo[popup].signcolumn = 'no'
+    vim.wo[popup].foldcolumn = '0'
+    vim.wo[popup].list = false
+    vim.wo[popup].wrap = false
+    vim.wo[popup].linebreak = false
+    vim.wo[popup].scrolloff = 0
+    vim.wo[popup].sidescrolloff = 0
 
     -- Set the window highlight to transparent
     vim.api.nvim_win_set_hl_ns(popup, ns)
-    vim.api.nvim_win_set_option(popup, 'winhighlight', 'Normal:KeyTrailPopup')
+    vim.wo[popup].winhighlight = 'Normal:KeyTrailPopup'
 
     return buf, popup
 end

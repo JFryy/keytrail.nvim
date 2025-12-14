@@ -55,22 +55,23 @@ function M.jump_to_path(ft, path)
     -- Map jsonc to json parser since they share the same syntax
     local parser_lang = ft == "jsonc" and "json" or ft
 
+    if not treesitter.ensure_parser_ready(parser_lang) then
+        return false
+    end
+
     local ok_parser, parser = pcall(vim.treesitter.get_parser, 0, parser_lang)
     if not ok_parser or not parser then
-        vim.notify("Failed to get parser for " .. ft, vim.log.levels.ERROR)
         return false
     end
 
     local trees = parser:parse()
     if not trees or not trees[1] then
-        vim.notify("Failed to parse tree for " .. ft, vim.log.levels.ERROR)
         return false
     end
 
     local tree = trees[1]
     local root = tree:root()
     if not root then
-        vim.notify("Failed to get root node", vim.log.levels.ERROR)
         return false
     end
 
@@ -249,7 +250,7 @@ function M.jump_to_path(ft, path)
                 if type == "block_mapping_pair" or type == "flow_mapping_pair" or type == "pair" then
                     local key_node = child:field("key")[1]
                     if key_node then
-                        local key = treesitter.clean_key(vim.treesitter.get_node_text(key_node, 0))
+                        key = treesitter.clean_key(vim.treesitter.get_node_text(key_node, 0))
 
                         if key == treesitter.clean_key(segment) then
                             -- Get the value node
@@ -342,6 +343,10 @@ local function get_all_paths()
     local ft = vim.bo.filetype
     -- Map jsonc to json parser since they share the same syntax
     local parser_lang = ft == "jsonc" and "json" or ft
+
+    if not treesitter.ensure_parser_ready(parser_lang) then
+        return {}
+    end
 
     local ok_parser, parser = pcall(vim.treesitter.get_parser, 0, parser_lang)
     if not ok_parser or not parser then

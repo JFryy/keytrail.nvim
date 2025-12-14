@@ -15,6 +15,4 @@
 
 ---@class KeyTrail
 ---@field setup fun(opts?: KeyTrailConfig) Setup the plugin with optional configuration
----@field handle_cursor_move fun() Handle cursor movement
----@field handle_window_change fun() Handle window changes
----@field handle_buffer_change fun() Handle buffer changes
+---@field statusline fun(): string Return a statusline-safe string for the current path

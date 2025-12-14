@@ -2,17 +2,6 @@ local M = {}
 
 ---@class KeyTrailConfig
 local default_config = {
-    -- Performance optimizations
-    lazy = {
-        enabled = true,                 -- Enable lazy loading
-        ft = { "yaml", "json", "jsonc" }, -- Only load for YAML, JSON, and JSONC files
-        event = "UIEnter",              -- Defer loading until after UI is ready
-    },
-    -- TreeSitter optimizations
-    treesitter = {
-        defer_parser_install = true,   -- Defer parser installation to avoid startup delays
-        load_parsers_on_demand = true, -- Only load parsers when needed
-    },
     -- UI settings
     hover_delay = 20,      -- Delay in milliseconds before showing popup
     popup_highlight = nil, -- Highlight or highlight table to use for the popup background (auto-detect when nil)
