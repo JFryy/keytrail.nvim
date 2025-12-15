@@ -52,8 +52,8 @@ end
 ---@param path string The path to find (e.g. "data[0].key1")
 ---@return boolean success Whether the jump was successful
 function M.jump_to_path(ft, path)
-    -- Map jsonc and json5 to json parser since they share the same syntax
-    local parser_lang = (ft == "jsonc" or ft == "json5") and "json" or ft
+    -- Map jsonc to json parser since they share the same syntax
+    local parser_lang = ft == "jsonc" and "json" or ft
 
     if not treesitter.ensure_parser_ready(parser_lang) then
         return false
@@ -82,6 +82,14 @@ function M.jump_to_path(ft, path)
     -- Handle root node based on file type
     if parser_lang == "json" then
         -- For JSON, get the actual object from the program node
+        for child in current_node:iter_children() do
+            if child:type() == "object" then
+                current_node = child
+                break
+            end
+        end
+    elseif parser_lang == "json5" then
+        -- For JSON5, get the actual object from the file node
         for child in current_node:iter_children() do
             if child:type() == "object" then
                 current_node = child
@@ -135,14 +143,33 @@ function M.jump_to_path(ft, path)
                 for child in current_node:iter_children() do
                     local type = child:type()
 
-                    if type == "block_mapping_pair" or type == "flow_mapping_pair" or type == "pair" then
-                        local key_node = child:field("key")[1]
-                        if key_node then
-                            local found_key = treesitter.clean_key(vim.treesitter.get_node_text(key_node, 0))
+                    if type == "block_mapping_pair" or type == "flow_mapping_pair" or type == "pair" or type == "member" then
+                        local key_node
+                        local found_key
 
-                            if found_key == treesitter.clean_key(key) then
+                        if type == "member" then
+                            -- JSON5 member: first named child is the identifier
+                            key_node = child:named_child(0)
+                            if key_node and key_node:type() == "identifier" then
+                                found_key = vim.treesitter.get_node_text(key_node, 0)
+                            end
+                        else
+                            -- JSON/YAML pair: use field("key")
+                            key_node = child:field("key")[1]
+                            if key_node then
+                                found_key = treesitter.clean_key(vim.treesitter.get_node_text(key_node, 0))
+                            end
+                        end
+
+                        if found_key and found_key == treesitter.clean_key(key) then
                                 -- Get the value node which should contain the array
-                                local value_node = child:field("value")[1]
+                                local value_node
+                                if type == "member" then
+                                    -- For JSON5 member, value is the second named child
+                                    value_node = child:named_child(1)
+                                else
+                                    value_node = child:field("value")[1]
+                                end
                                 if value_node then
                                     -- For JSON, the value might be an array directly
                                     if value_node:type() == "array" then
@@ -163,7 +190,6 @@ function M.jump_to_path(ft, path)
                         end
                     end
                 end
-            end
 
             -- Now find the array item at the specified index
             local current_index = 0
@@ -247,15 +273,34 @@ function M.jump_to_path(ft, path)
                 local type = child:type()
 
                 -- Handle both direct key-value pairs and nested mappings
-                if type == "block_mapping_pair" or type == "flow_mapping_pair" or type == "pair" then
-                    local key_node = child:field("key")[1]
-                    if key_node then
-                        key = treesitter.clean_key(vim.treesitter.get_node_text(key_node, 0))
+                if type == "block_mapping_pair" or type == "flow_mapping_pair" or type == "pair" or type == "member" then
+                    local key_node
+                    local found_key
 
-                        if key == treesitter.clean_key(segment) then
-                            -- Get the value node
-                            local value_node = child:field("value")[1]
-                            if value_node then
+                    if type == "member" then
+                        -- JSON5 member: first named child is the identifier
+                        key_node = child:named_child(0)
+                        if key_node and key_node:type() == "identifier" then
+                            found_key = vim.treesitter.get_node_text(key_node, 0)
+                        end
+                    else
+                        -- JSON/YAML pair: use field("key")
+                        key_node = child:field("key")[1]
+                        if key_node then
+                            found_key = treesitter.clean_key(vim.treesitter.get_node_text(key_node, 0))
+                        end
+                    end
+
+                    if found_key and found_key == treesitter.clean_key(segment) then
+                        -- Get the value node
+                        local value_node
+                        if type == "member" then
+                            -- For JSON5 member, value is the second named child
+                            value_node = child:named_child(1)
+                        else
+                            value_node = child:field("value")[1]
+                        end
+                        if value_node then
                                 -- For value nodes, we need to get the actual content if it's a block_node
                                 if value_node:type() == "block_node" then
                                     for content in value_node:iter_children() do
@@ -323,7 +368,6 @@ function M.jump_to_path(ft, path)
                     end
                 end
             end
-        end
 
         if not found then
             vim.notify("Failed to find segment: " .. segment, vim.log.levels.ERROR)
@@ -341,8 +385,8 @@ end
 ---@return table paths Array of paths
 local function get_all_paths()
     local ft = vim.bo.filetype
-    -- Map jsonc and json5 to json parser since they share the same syntax
-    local parser_lang = (ft == "jsonc" or ft == "json5") and "json" or ft
+    -- Map jsonc to json parser since they share the same syntax
+    local parser_lang = ft == "jsonc" and "json" or ft
 
     if not treesitter.ensure_parser_ready(parser_lang) then
         return {}
@@ -378,9 +422,9 @@ local function get_all_paths()
             end
         end
 
-        -- Handle JSON structure
-        if parser_lang == "json" then
-            if type == "program" or type == "document" or type == "object" then
+        -- Handle JSON/JSON5 structure
+        if parser_lang == "json" or parser_lang == "json5" then
+            if type == "program" or type == "file" or type == "document" or type == "object" then
                 for child in node:iter_children() do
                     traverse_node(child, current_path)
                 end
@@ -390,7 +434,9 @@ local function get_all_paths()
             if type == "array" then
                 local index = 0
                 for child in node:iter_children() do
-                    if child:type() == "array_element" then
+                    local child_type = child:type()
+                    -- Skip punctuation nodes like commas, brackets
+                    if child_type ~= "," and child_type ~= "[" and child_type ~= "]" then
                         local new_path = current_path .. "[" .. index .. "]"
                         table.insert(paths, new_path)
                         traverse_node(child, new_path)
@@ -412,6 +458,21 @@ local function get_all_paths()
 
                 -- Traverse value node
                 local value_node = node:field("value")[1]
+                if value_node then
+                    traverse_node(value_node, new_path)
+                end
+            end
+        -- Handle JSON5 member nodes
+        elseif type == "member" then
+            local key_node = node:named_child(0)
+            if key_node and key_node:type() == "identifier" then
+                local key = vim.treesitter.get_node_text(key_node, 0)
+                local new_path = current_path ..
+                (current_path ~= "" and config.get().delimiter or "") .. treesitter.quote_key_if_needed(key)
+                table.insert(paths, new_path)
+
+                -- Traverse value node (second named child)
+                local value_node = node:named_child(1)
                 if value_node then
                     traverse_node(value_node, new_path)
                 end

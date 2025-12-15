@@ -58,8 +58,8 @@ end
 ---@param ft string The filetype
 ---@return string|nil path The path at cursor, or nil if not found
 function M.get_path_at_cursor(ft)
-    -- Map jsonc and json5 to json parser since they share the same syntax
-    local parser_lang = (ft == "jsonc" or ft == "json5") and "json" or ft
+    -- Map jsonc to json parser since they share the same syntax
+    local parser_lang = ft == "jsonc" and "json" or ft
 
     if not M.ensure_parser_ready(parser_lang) then
         return nil
@@ -98,6 +98,14 @@ function M.get_path_at_cursor(ft)
             local key_node = node:field("key")[1]
             if key_node then
                 local key = M.clean_key(vim.treesitter.get_node_text(key_node, 0))
+                table.insert(path, 1, M.quote_key_if_needed(key))
+            end
+        -- Handle JSON5 member nodes (key-value pairs)
+        elseif type == "member" then
+            -- For JSON5, the first named child is the identifier (key)
+            local key_node = node:named_child(0)
+            if key_node and key_node:type() == "identifier" then
+                local key = vim.treesitter.get_node_text(key_node, 0)
                 table.insert(path, 1, M.quote_key_if_needed(key))
             end
             -- Handle both YAML and JSON array items
