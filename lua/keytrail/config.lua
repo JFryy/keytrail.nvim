@@ -31,7 +31,8 @@ local default_config = {
     filetypes = {                -- Supported file types
         yaml = true,
         json = true,
-        jsonc = true
+        jsonc = true,
+        json5 = true
     },
     key_mapping = "jq",     -- Key mapping for jump window (will be prefixed with <leader>)
     yank_key_mapping = "jy" -- Key mapping for yank command (will be prefixed with <leader>)

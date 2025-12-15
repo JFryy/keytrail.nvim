@@ -1,0 +1,61 @@
+{
+  // This is a JSON5 test file
+  name: "keytrail-test",
+  version: "1.0.0",
+
+  // Nested configuration
+  config: {
+    enabled: true,
+    timeout: 5000,
+    features: {
+      popup: true,
+      statusline: false,
+    },
+  },
+
+  // Array of users
+  users: [
+    {
+      id: 1,
+      name: "Alice",
+      roles: ["admin", "developer"],
+    },
+    {
+      id: 2,
+      name: "Bob",
+      roles: ["user"],
+    },
+  ],
+
+  // Complex nested structure
+  settings: {
+    ui: {
+      colors: {
+        primary: "#ff0000",
+        secondary: "#00ff00",
+      },
+      dimensions: {
+        width: 800,
+        height: 600,
+      },
+    },
+    api: {
+      endpoints: [
+        {
+          path: "/api/v1/users",
+          method: "GET",
+        },
+        {
+          path: "/api/v1/posts",
+          method: "POST",
+        },
+      ],
+    },
+  },
+
+  // Trailing comma is valid in JSON5
+  metadata: {
+    created: "2025-12-14",
+    author: "test",
+  },
+}

@@ -25,7 +25,7 @@ local function setup_lazy()
 
     -- Set up filetype autocommand for lazy initialization
     vim.api.nvim_create_autocmd("FileType", {
-        pattern = { "yaml", "json", "jsonc" },
+        pattern = { "yaml", "json", "jsonc", "json5" },
         callback = function()
             require('keytrail').ensure_setup()
         end,

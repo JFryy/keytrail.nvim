@@ -52,8 +52,8 @@ end
 ---@param path string The path to find (e.g. "data[0].key1")
 ---@return boolean success Whether the jump was successful
 function M.jump_to_path(ft, path)
-    -- Map jsonc to json parser since they share the same syntax
-    local parser_lang = ft == "jsonc" and "json" or ft
+    -- Map jsonc and json5 to json parser since they share the same syntax
+    local parser_lang = (ft == "jsonc" or ft == "json5") and "json" or ft
 
     if not treesitter.ensure_parser_ready(parser_lang) then
         return false
@@ -341,8 +341,8 @@ end
 ---@return table paths Array of paths
 local function get_all_paths()
     local ft = vim.bo.filetype
-    -- Map jsonc to json parser since they share the same syntax
-    local parser_lang = ft == "jsonc" and "json" or ft
+    -- Map jsonc and json5 to json parser since they share the same syntax
+    local parser_lang = (ft == "jsonc" or ft == "json5") and "json" or ft
 
     if not treesitter.ensure_parser_ready(parser_lang) then
         return {}

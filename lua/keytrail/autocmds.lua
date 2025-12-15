@@ -1,7 +1,7 @@
 local M = {}
 
 -- File patterns that KeyTrail supports
-M.PATTERNS = { "*.yaml", "*.yml", "*.json", "*.jsonc" }
+M.PATTERNS = { "*.yaml", "*.yml", "*.json", "*.jsonc", "*.json5" }
 
 ---Set up all autocommands for KeyTrail
 ---@param handle_cursor_move function Callback for cursor movement

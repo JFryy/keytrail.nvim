@@ -58,8 +58,8 @@ end
 ---@param ft string The filetype
 ---@return string|nil path The path at cursor, or nil if not found
 function M.get_path_at_cursor(ft)
-    -- Map jsonc to json parser since they share the same syntax
-    local parser_lang = ft == "jsonc" and "json" or ft
+    -- Map jsonc and json5 to json parser since they share the same syntax
+    local parser_lang = (ft == "jsonc" or ft == "json5") and "json" or ft
 
     if not M.ensure_parser_ready(parser_lang) then
         return nil

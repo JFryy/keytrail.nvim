@@ -1,7 +1,7 @@
 ---@class KeyTrail
 local M = {}
 
----@alias FileType 'yaml'|'json'|'jsonc'
+---@alias FileType 'yaml'|'json'|'jsonc'|'json5'
 
 -- Lazy-loaded modules
 local config, highlights, treesitter, display, autocmds, commands
