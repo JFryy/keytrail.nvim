@@ -130,8 +130,8 @@ function M.get_path_at_cursor(ft)
         return nil
     end
 
-    -- Join path segments with delimiter
-    return table.concat(path, config.get().delimiter)
+    -- Join path segments with delimiter and prepend leading "." for jq compatibility
+    return "." .. table.concat(path, config.get().delimiter)
 end
 
 return M
