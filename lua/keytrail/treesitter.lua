@@ -43,12 +43,14 @@ function M.clean_key(key)
     return key:gsub('^["\']', ''):gsub('["\']$', '')
 end
 
----Quote a key if it contains the delimiter
+---Quote a key if it contains the delimiter or whitespace
 ---@param key string The key to potentially quote
 ---@return string quoted The quoted key if needed, otherwise original
 function M.quote_key_if_needed(key)
     local delimiter = config.get().delimiter
-    if key:find(delimiter, 1, true) then
+    if key:find('%s') then
+        return '"' .. key .. '"'
+    elseif key:find(delimiter, 1, true) then
         return "'" .. key .. "'"
     end
     return key
@@ -137,8 +139,8 @@ function M.get_path_at_cursor(ft)
         return nil
     end
 
-    -- Join path segments with delimiter
-    return table.concat(path, config.get().delimiter)
+    -- Join path segments with delimiter and prepend leading "." for jq compatibility
+    return "." .. table.concat(path, config.get().delimiter)
 end
 
 return M
