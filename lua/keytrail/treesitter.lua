@@ -109,7 +109,7 @@ function M.get_path_at_cursor(ft)
                 table.insert(path, 1, M.quote_key_if_needed(key))
             end
             -- Handle both YAML and JSON array items
-        elseif type == "block_sequence_item" or type == "flow_sequence_item" or type == "array" then
+        elseif type == "block_sequence_item" or type == "flow_sequence_item" then
             local parent = node:parent()
             if parent then
                 local index = 0
@@ -117,8 +117,17 @@ function M.get_path_at_cursor(ft)
                     if child == node then break end
                     if child:type() == type then index = index + 1 end
                 end
-                table.insert(path, 1, "[" .. index .. "]") -- Format array index with brackets
+                table.insert(path, 1, "[" .. index .. "]")
             end
+            -- Handle JSON array items: node is a direct named child of an array node
+        elseif node:parent() and node:parent():type() == "array" then
+            local parent = node:parent()
+            local index = 0
+            for child in parent:iter_children() do
+                if child == node then break end
+                if child and child:named() then index = index + 1 end
+            end
+            table.insert(path, 1, "[" .. index .. "]")
         end
 
         node = node:parent()
